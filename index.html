@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIT Flyer Coverage Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+  :root {
+    --bg: #f8f7f4; --card: #fff; --border: #e8e6e1; --text: #1a1a1a;
+    --muted: #999; --subtle: #eeecea;
+    --green: #22c55e; --green-bg: #dcfce7; --green-fg: #166534;
+    --yellow: #eab308; --yellow-bg: #fef9c3; --yellow-fg: #854d0e;
+    --red: #ef4444; --red-bg: #fce4ec; --red-fg: #991b1b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── Setup Screen ── */
+  #setup-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .setup-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+    max-width: 560px; width: 100%; padding: 40px 36px; box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+  }
+  .setup-box h1 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+  .setup-box .sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; font-family: 'DM Mono', monospace; }
+  .setup-box label { font-size: 13px; font-weight: 700; display: block; margin-bottom: 6px; }
+  .setup-box input {
+    width: 100%; padding: 12px 16px; border-radius: 12px; border: 1.5px solid var(--border);
+    font-size: 14px; font-family: 'DM Mono', monospace; outline: none; transition: border 0.15s;
+  }
+  .setup-box input:focus { border-color: var(--text); }
+  .setup-box .hint {
+    font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.5;
+    background: var(--subtle); padding: 12px 14px; border-radius: 10px; margin-bottom: 24px;
+  }
+  .setup-box .hint code { font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; }
+  .setup-btn {
+    width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--text);
+    color: #fff; font-size: 14px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .setup-btn:hover { opacity: 0.85; }
+  .setup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .setup-steps { margin: 20px 0 24px; }
+  .setup-steps li {
+    font-size: 13px; color: #555; margin-bottom: 8px; padding-left: 4px; line-height: 1.5;
+  }
+  .setup-steps li strong { color: var(--text); }
+
+  /* ── Dashboard ── */
+  #dashboard { display: none; }
+  .header {
+    background: var(--text); padding: 20px 28px 16px; color: #fff;
+  }
+  .header-inner {
+    max-width: 960px; margin: 0 auto; display: flex; justify-content: space-between;
+    align-items: flex-end; flex-wrap: wrap; gap: 12px;
+  }
+  .header .mit-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+    color: rgba(255,255,255,0.4); font-family: 'DM Mono', monospace;
+  }
+  .header h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+  .header .date-line {
+    font-size: 12px; color: rgba(255,255,255,0.35); font-family: 'DM Mono', monospace;
+  }
+  .header .overall-pct { font-size: 32px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .header .overall-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-family: 'DM Mono', monospace; }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  /* ── Loading / Error ── */
+  .status-msg {
+    text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px;
+  }
+  .status-msg .spinner {
+    width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--text);
+    border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { color: var(--red-fg); background: var(--red-bg); padding: 16px 20px; border-radius: 12px; font-size: 13px; margin-bottom: 20px; }
+
+  /* ── Filters ── */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 99px;
+    font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border);
+    background: var(--card); color: #666; transition: all 0.15s; user-select: none;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .pill:hover { transform: scale(1.03); }
+  .pill.active { background: var(--text); color: #fff; border-color: var(--text); }
+  .pill-group { display: flex; gap: 4px; background: var(--subtle); border-radius: 99px; padding: 3px; }
+  .pill-group .pill { border: none; background: transparent; }
+  .pill-group .pill.active { background: var(--text); }
+  .divider { width: 1px; height: 20px; background: #ddd; margin: 0 4px; }
+
+  /* ── Map ── */
+  .map-wrap {
+    background: var(--card); border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--border); box-shadow: 0 2px 12px rgba(0,0,0,0.04); margin-bottom: 12px;
+    position: relative; height: 600px;
+  }
+  .map-wrap #map {
+    width: 100%; height: 100%; border-radius: 18px;
+  }
+  /* Leaflet marker customization */
+  .leaflet-marker-icon { cursor: pointer; }
+  .custom-marker {
+    background: transparent;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .marker-circle {
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-weight: 800;
+    font-size: 9px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .marker-circle.selected {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; font-size: 11px; color: #888;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; border-width: 2.5px; border-style: solid; background: #fff; }
+  .legend-hint { margin-left: auto; font-family: 'DM Mono', monospace; color: #aaa; }
+
+  /* ── Building List ── */
+  .bldg-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+  .bldg-card {
+    background: var(--card); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 14px 18px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .bldg-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+  .bldg-card.selected { border-color: currentColor; }
+  .bldg-card .bldg-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .bldg-card .bldg-num {
+    font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; color: var(--muted);
+    background: rgba(0,0,0,0.04); padding: 2px 7px; border-radius: 6px;
+  }
+  .bldg-card .bldg-name { font-weight: 700; font-size: 14px; }
+  .bldg-card .bldg-count { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* ── Coverage Bar ── */
+  .bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .bar-track { flex: 1; height: 7px; border-radius: 7px; background: rgba(0,0,0,0.08); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 7px; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+  .bar-pct { font-size: 12px; font-weight: 800; min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ── Detail Panel ── */
+  .detail-panel {
+    background: var(--card); border-radius: 18px; border: 1px solid var(--border);
+    overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 24px;
+    animation: fadeUp 0.3s ease;
+  }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .detail-header {
+    background: var(--text); padding: 18px 24px; color: #fff;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .detail-header h3 { font-size: 18px; font-weight: 800; }
+  .detail-header .detail-sub { font-size: 12px; color: rgba(255,255,255,0.4); font-family: 'DM Mono', monospace; margin-top: 2px; }
+  .detail-close {
+    background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 10px;
+    padding: 6px 14px; cursor: pointer; font-size: 12px; font-family: 'DM Sans', sans-serif; font-weight: 600;
+  }
+  .detail-body { padding: 20px 24px; }
+  .floor-label {
+    font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 8px; font-family: 'DM Mono', monospace;
+  }
+  .floor-section { margin-bottom: 20px; }
+  .spot-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-radius: 10px; margin-bottom: 3px; transition: background 0.15s;
+  }
+  .spot-row:hover { background: rgba(0,0,0,0.025); }
+  .spot-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .spot-dot.up { background: var(--green); box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+  .spot-dot.missing { background: var(--red); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .spot-info { flex: 1; min-width: 0; }
+  .spot-name { font-size: 13px; font-weight: 600; }
+  .spot-meta { font-size: 11px; color: var(--muted); }
+  .spot-meta .note { color: #dc2626; font-style: italic; }
+  .spot-badge {
+    font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 99px;
+    font-family: 'DM Mono', monospace; letter-spacing: 0.5px;
+  }
+  .spot-badge.up { background: var(--green-bg); color: var(--green-fg); }
+  .spot-badge.missing { background: var(--red-bg); color: var(--red-fg); }
+
+  /* ── Team Section ── */
+  .section-label {
+    font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #aaa; margin-bottom: 12px; font-family: 'DM Mono', monospace;
+  }
+  .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .team-card {
+    background: var(--card); border: 1.5px solid var(--border); border-radius: 14px;
+    padding: 14px 18px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .team-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+  .team-card .team-name { font-weight: 800; font-size: 15px; margin-bottom: 6px; }
+  .team-card .team-count { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+  /* ── Refresh ── */
+  .refresh-bar {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;
+  }
+  .refresh-btn {
+    font-size: 11px; font-family: 'DM Mono', monospace; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card); cursor: pointer; color: var(--text);
+    font-weight: 500;
+  }
+  .refresh-btn:hover { background: var(--subtle); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     SETUP SCREEN — shown once to paste the Google Sheet URL
+     ════════════════════════════════════════════════════════════════════ -->
+<div id="setup-screen">
+  <div class="setup-box">
+    <h1>MIT Flyer Coverage</h1>
+    <div class="sub">one-time setup</div>
+
+    <ol class="setup-steps">
+      <li>Open your <strong>Google Sheet</strong> with the flyer tracking data.</li>
+      <li>Make sure the sheet has columns: <strong>Building, Bldg #, Floor, Spot Name, Spot Type, Assigned To, Posted, Date Posted, Notes</strong> (in that order).</li>
+      <li>Go to <strong>File → Share → Publish to web</strong>.</li>
+      <li>Select the <strong>Coverage Data</strong> sheet (not "Entire Document").</li>
+      <li>Choose <strong>CSV</strong> as the format, then click <strong>Publish</strong>.</li>
+      <li>Copy the URL it gives you and paste it below.</li>
+    </ol>
+
+    <label for="sheet-url">Published CSV URL</label>
+    <input type="text" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=...&single=true&output=csv">
+    <div class="hint">
+      The URL should contain <code>output=csv</code> at the end. This is read-only — viewers of your dashboard cannot edit the spreadsheet. Only people you've shared the sheet with directly can edit it.
+    </div>
+
+    <button class="setup-btn" id="connect-btn" onclick="connectSheet()">Connect &amp; Launch Dashboard</button>
+    <div style="text-align:center; margin-top:16px;">
+      <span style="font-size:12px; color:var(--muted);">or</span>
+    </div>
+    <button class="setup-btn" id="demo-btn" onclick="launchDemo()" style="margin-top:12px; background:#fff; color:var(--text); border:1.5px solid var(--border);">Try Demo with Sample Data</button>
+    <div id="setup-error" style="color:#991b1b; font-size:12px; margin-top:12px; display:none;"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     DASHBOARD — hidden until data loads
+     ════════════════════════════════════════════════════════════════════ -->
+<div id="dashboard">
+  <div class="header">
+    <div class="header-inner">
+      <div>
+        <div class="mit-label">MIT</div>
+        <h1>Flyer Coverage</h1>
+        <div class="date-line" id="date-line"></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="overall-pct" id="overall-pct">—</div>
+        <div class="overall-sub" id="overall-sub"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="refresh-bar">
+      <span id="last-updated">Loading...</span>
+      <button class="refresh-btn" onclick="refreshData()">↻ Refresh</button>
+    </div>
+
+    <div id="error-area"></div>
+
+    <!-- Filters -->
+    <div class="filters" id="filters"></div>
+
+    <!-- Map -->
+    <div id="map-section">
+      <div class="map-wrap">
+        <div id="map"></div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="border-color:var(--green)"></div> 80–100%</div>
+        <div class="legend-item"><div class="legend-dot" style="border-color:var(--yellow)"></div> 50–79%</div>
+        <div class="legend-item"><div class="legend-dot" style="border-color:var(--red)"></div> 0–49%</div>
+        <div class="legend-hint">click a building to drill down · scroll to zoom · powered by OpenStreetMap</div>
+      </div>
+    </div>
+
+    <!-- Building list (hidden in map mode) -->
+    <div id="list-section" style="display:none;" class="bldg-list"></div>
+
+    <!-- Detail panel -->
+    <div id="detail-section" style="display:none;"></div>
+
+    <!-- Team -->
+    <div class="section-label">Team Overview</div>
+    <div class="team-grid" id="team-section"></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────
+let rawData = [];
+let sheetUrl = "";
+let filterAssignee = "all";
+let filterStatus = "all";
+let viewMode = "map"; // "map" | "list"
+let selectedBuilding = null;
+let leafletMap = null;
+let mapMarkers = [];
+
+// Comprehensive MIT building coordinates (excluding undergraduate dorms)
+const BUILDING_COORDS = {
+  // Main Campus - Numbered Buildings
+  "1": { lat: 42.3596, lng: -71.0942, name: "Building 1" },
+  "2": { lat: 42.3598, lng: -71.0928, name: "Mathematics" },
+  "3": { lat: 42.3594, lng: -71.0934, name: "Maclaurin (West)" },
+  "4": { lat: 42.3598, lng: -71.0919, name: "Maclaurin (East)" },
+  "5": { lat: 42.3594, lng: -71.0948, name: "Chemistry" },
+  "6": { lat: 42.3602, lng: -71.0924, name: "Eastman Labs" },
+  "6C": { lat: 42.3603, lng: -71.0922, name: "Building 6C" },
+  "7": { lat: 42.3592, lng: -71.0936, name: "Rogers Building" },
+  "7A": { lat: 42.3591, lng: -71.0935, name: "Rogers Annex" },
+  "8": { lat: 42.3602, lng: -71.0914, name: "Building 8" },
+  "9": { lat: 42.3592, lng: -71.0907, name: "Building 9" },
+  "10": { lat: 42.3594, lng: -71.0927, name: "Great Dome" },
+  "11": { lat: 42.359, lng: -71.092, name: "Building 11" },
+  "12": { lat: 42.3588, lng: -71.0924, name: "Building 12" },
+  "13": { lat: 42.3593, lng: -71.0916, name: "Bush Building" },
+  "14": { lat: 42.359, lng: -71.0903, name: "Hayden Library" },
+  "16": { lat: 42.3602, lng: -71.0908, name: "Dorrance (MatSci)" },
+  "17": { lat: 42.3604, lng: -71.0902, name: "Building 17" },
+  "18": { lat: 42.3598, lng: -71.0903, name: "Dreyfus (Chem)" },
+  "24": { lat: 42.3601, lng: -71.0897, name: "Nuclear Sci & Eng" },
+  "26": { lat: 42.3605, lng: -71.0912, name: "Compton Labs" },
+  "31": { lat: 42.36, lng: -71.0935, name: "Sloan Labs (Aero)" },
+  "32": { lat: 42.3616, lng: -71.0906, name: "Stata Center" },
+  "33": { lat: 42.3598, lng: -71.0938, name: "Guggenheim (Aero)" },
+  "34": { lat: 42.3607, lng: -71.093, name: "EG&G Education" },
+  "35": { lat: 42.3604, lng: -71.0935, name: "Sloan Auto Lab" },
+  "36": { lat: 42.3604, lng: -71.092, name: "Fairchild" },
+  "37": { lat: 42.3601, lng: -71.0924, name: "McNair" },
+  "38": { lat: 42.3605, lng: -71.0928, name: "Fairchild Annex" },
+  "39": { lat: 42.36, lng: -71.093, name: "Brown Building" },
+  "41": { lat: 42.3597, lng: -71.0945, name: "Building 41" },
+  "42": { lat: 42.3595, lng: -71.0947, name: "Building 42" },
+  "43": { lat: 42.3593, lng: -71.0949, name: "Building 43" },
+  "45": { lat: 42.3619, lng: -71.0915, name: "Schwarzman Computing" },
+  "46": { lat: 42.3621, lng: -71.0907, name: "Brain & Cog Sci" },
+  "48": { lat: 42.3618, lng: -71.0902, name: "Building 48" },
+  "50": { lat: 42.3587, lng: -71.0899, name: "Walker Memorial" },
+  "51": { lat: 42.3589, lng: -71.0904, name: "Building 51" },
+  "54": { lat: 42.3601, lng: -71.0912, name: "Green Building" },
+  "56": { lat: 42.3608, lng: -71.0908, name: "Whitaker (BioEng)" },
+  "57": { lat: 42.361, lng: -71.0906, name: "Building 57" },
+  "62": { lat: 42.3601, lng: -71.088, name: "Building 62" },
+  "64": { lat: 42.3604, lng: -71.0877, name: "Building 64" },
+  "66": { lat: 42.3609, lng: -71.0916, name: "Landau (ChemE)" },
+  "68": { lat: 42.3612, lng: -71.092, name: "Koch Biology" },
+  "76": { lat: 42.3615, lng: -71.0925, name: "Koch Institute" },
+
+  // East Campus Buildings
+  "E1": { lat: 42.3596, lng: -71.0865, name: "President's House" },
+  "E2": { lat: 42.3598, lng: -71.0867, name: "Building E2" },
+  "E14": { lat: 42.3603, lng: -71.0872, name: "Media Lab" },
+  "E15": { lat: 42.3607, lng: -71.0876, name: "Wiesner (Media)" },
+  "E17": { lat: 42.3604, lng: -71.087, name: "Mudd (Admissions)" },
+  "E18": { lat: 42.3605, lng: -71.0865, name: "Ford Building" },
+  "E19": { lat: 42.3607, lng: -71.0863, name: "Ford Annex" },
+  "E23": { lat: 42.3609, lng: -71.0858, name: "Building E23" },
+  "E25": { lat: 42.3608, lng: -71.0848, name: "Whitaker Health" },
+  "E28": { lat: 42.3622, lng: -71.0862, name: "MIT Museum" },
+  "E37": { lat: 42.36, lng: -71.084, name: "Building E37" },
+  "E38": { lat: 42.3602, lng: -71.0838, name: "Building E38" },
+  "E39": { lat: 42.3604, lng: -71.0836, name: "Building E39" },
+  "E40": { lat: 42.3614, lng: -71.086, name: "Muckley" },
+  "E48": { lat: 42.3616, lng: -71.0852, name: "Building E48" },
+  "E51": { lat: 42.361, lng: -71.0845, name: "Tang Center" },
+  "E52": { lat: 42.3613, lng: -71.0835, name: "Sloan School" },
+  "E53": { lat: 42.3612, lng: -71.0838, name: "Hermann (Econ)" },
+  "E55": { lat: 42.3615, lng: -71.084, name: "Building E55" },
+  "E60": { lat: 42.3618, lng: -71.0832, name: "Building E60" },
+  "E62": { lat: 42.3617, lng: -71.083, name: "Sloan (new)" },
+  "E70": { lat: 42.362, lng: -71.0825, name: "Building E70" },
+  "E90": { lat: 42.3625, lng: -71.085, name: "Building E90" },
+  "E94": { lat: 42.3627, lng: -71.0845, name: "Building E94" },
+
+  // North Campus Buildings
+  "N9": { lat: 42.364, lng: -71.088, name: "Building N9" },
+  "N10": { lat: 42.3642, lng: -71.0882, name: "Building N10" },
+  "N42": { lat: 42.3638, lng: -71.0895, name: "Building N42" },
+  "N51": { lat: 42.3645, lng: -71.089, name: "Building N51" },
+  "N52": { lat: 42.3647, lng: -71.0892, name: "Building N52" },
+  "N57": { lat: 42.365, lng: -71.0888, name: "Building N57" },
+
+  // Northeast Campus Buildings
+  "NE18": { lat: 42.3655, lng: -71.0865, name: "Building NE18" },
+  "NE36": { lat: 42.3658, lng: -71.087, name: "Building NE36" },
+  "NE46": { lat: 42.366, lng: -71.0868, name: "Building NE46" },
+  "NE47": { lat: 42.3662, lng: -71.0866, name: "Building NE47" },
+  "NE48": { lat: 42.3664, lng: -71.0864, name: "Building NE48" },
+  "NE49": { lat: 42.3666, lng: -71.0862, name: "Building NE49" },
+  "NE55": { lat: 42.3668, lng: -71.086, name: "Building NE55" },
+  "NE83": { lat: 42.367, lng: -71.0875, name: "Building NE83" },
+  "NE103": { lat: 42.3672, lng: -71.088, name: "Building NE103" },
+
+  // Northwest Campus Buildings
+  "NW10": { lat: 42.3628, lng: -71.0955, name: "Building NW10" },
+  "NW12": { lat: 42.363, lng: -71.0958, name: "Building NW12" },
+  "NW13": { lat: 42.3632, lng: -71.096, name: "Building NW13" },
+  "NW14": { lat: 42.3634, lng: -71.0962, name: "Magnet Lab" },
+  "NW17": { lat: 42.3636, lng: -71.0965, name: "Building NW17" },
+  "NW21": { lat: 42.3638, lng: -71.097, name: "Building NW21" },
+  "NW22": { lat: 42.364, lng: -71.0972, name: "Building NW22" },
+  "NW23": { lat: 42.3642, lng: -71.0974, name: "Building NW23" },
+  "NW30": { lat: 42.3644, lng: -71.0976, name: "Building NW30" },
+  "NW35": { lat: 42.3632, lng: -71.0968, name: "Edgerton Center" },
+  "NW61": { lat: 42.3646, lng: -71.0978, name: "Building NW61" },
+  "NW86": { lat: 42.3648, lng: -71.098, name: "Building NW86" },
+  "NW98": { lat: 42.365, lng: -71.0982, name: "Building NW98" },
+
+  // West Campus Buildings (non-dorm)
+  "W2": { lat: 42.3575, lng: -71.0935, name: "Building W2" },
+  "W5": { lat: 42.3572, lng: -71.094, name: "Green Hall" },
+  "W8": { lat: 42.357, lng: -71.0945, name: "Building W8" },
+  "W11": { lat: 42.3568, lng: -71.095, name: "Building W11" },
+  "W13": { lat: 42.3566, lng: -71.0955, name: "Building W13" },
+  "W15": { lat: 42.3564, lng: -71.096, name: "Building W15" },
+  "W16": { lat: 42.358, lng: -71.096, name: "Kresge Auditorium" },
+  "W18": { lat: 42.3562, lng: -71.0965, name: "Building W18" },
+  "W20": { lat: 42.3573, lng: -71.0957, name: "Student Center" },
+  "W31": { lat: 42.3567, lng: -71.0975, name: "du Pont Gym" },
+  "W32": { lat: 42.3569, lng: -71.0978, name: "du Pont Athletic" },
+  "W35": { lat: 42.3568, lng: -71.097, name: "Zesiger Sports" },
+  "W41": { lat: 42.3565, lng: -71.098, name: "Building W41" },
+  "W46": { lat: 42.3573, lng: -71.0995, name: "New Vassar" },
+  "W59": { lat: 42.356, lng: -71.099, name: "Building W59" },
+  "W84": { lat: 42.3558, lng: -71.1, name: "Building W84" },
+  "W89": { lat: 42.3556, lng: -71.1005, name: "Building W89" },
+  "W91": { lat: 42.3554, lng: -71.101, name: "Building W91" },
+  "W92": { lat: 42.3552, lng: -71.1012, name: "Building W92" },
+  "W97": { lat: 42.355, lng: -71.1015, name: "Building W97" },
+  "W98": { lat: 42.3548, lng: -71.1018, name: "Building W98" },
+  "WW15": { lat: 42.3546, lng: -71.102, name: "Building WW15" }
+};
+
+// ─── CSV PARSING ───────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  // Skip header row
+  return lines.slice(1).map(line => {
+    const cols = parseCSVLine(line);
+    return {
+      building: (cols[0] || "").trim(),
+      bldgNum:  (cols[1] || "").trim(),
+      floor:    (cols[2] || "").trim(),
+      spot:     (cols[3] || "").trim(),
+      type:     (cols[4] || "").trim(),
+      assignee: (cols[5] || "").trim(),
+      posted:   (cols[6] || "").trim().toUpperCase() === "YES",
+      date:     (cols[7] || "").trim(),
+      notes:    (cols[8] || "").trim(),
+    };
+  }).filter(r => r.building);
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { current += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(current); current = ""; }
+      else { current += ch; }
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+// ─── DATA FETCHING ─────────────────────────────────────────────────
+async function fetchData(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Failed to fetch (${resp.status})`);
+  const text = await resp.text();
+  return parseCSV(text);
+}
+
+async function connectSheet() {
+  const input = document.getElementById("sheet-url");
+  const btn = document.getElementById("connect-btn");
+  const errEl = document.getElementById("setup-error");
+  const url = input.value.trim();
+
+  if (!url) { errEl.textContent = "Please paste a URL."; errEl.style.display = "block"; return; }
+  if (!url.includes("output=csv")) { errEl.textContent = "This doesn't look like a published CSV URL. Make sure you selected CSV format when publishing."; errEl.style.display = "block"; return; }
+
+  btn.disabled = true; btn.textContent = "Connecting..."; errEl.style.display = "none";
+
+  try {
+    const data = await fetchData(url);
+    if (data.length === 0) throw new Error("No data rows found. Check that you published the correct sheet and it has data starting in row 2.");
+    sheetUrl = url;
+    localStorage.setItem("mit-flyer-sheet-url", url);
+    rawData = data;
+    document.getElementById("setup-screen").style.display = "none";
+    document.getElementById("dashboard").style.display = "block";
+    renderDashboard();
+  } catch (e) {
+    errEl.textContent = "Error: " + e.message; errEl.style.display = "block";
+    btn.disabled = false; btn.textContent = "Connect & Launch Dashboard";
+  }
+}
+
+function launchDemo() {
+  const demoCSV = `Building,Bldg #,Floor,Spot Name,Spot Type,Assigned To,Posted,Date Posted,Notes
+Bldg 1 – Civil & Environmental Eng,1,1,Floor 1 Board,Bulletin Board,Priya,NO,,
+Bldg 1 – Civil & Environmental Eng,1,2,Floor 2 Board,Bulletin Board,Priya,NO,,
+Bldg 1 – Civil & Environmental Eng,1,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 1 – Civil & Environmental Eng,1,4,Floor 4 Board,Bulletin Board,Priya,NO,,Couldn't access
+Bldg 2 – Mechanical Eng,2,1,Floor 1 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 2 – Mechanical Eng,2,2,Floor 2 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 2 – Mechanical Eng,2,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 2 – Mechanical Eng,2,4,Floor 4 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 3 – Maclaurin (West),3,1,Floor 1 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 3 – Maclaurin (West),3,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 3 – Maclaurin (West),3,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 3 – Maclaurin (West),3,4,Floor 4 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 4 – Maclaurin (East),4,1,Floor 1 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg 4 – Maclaurin (East),4,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 4 – Maclaurin (East),4,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 4 – Maclaurin (East),4,4,Floor 4 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 5 – Chemistry,5,1,Floor 1 Board,Bulletin Board,Lina,NO,,
+Bldg 5 – Chemistry,5,2,Floor 2 Board,Bulletin Board,Lina,NO,,Couldn't access
+Bldg 5 – Chemistry,5,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 5 – Chemistry,5,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 6 – Electrical Eng,6,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 6 – Electrical Eng,6,2,Floor 2 Board,Bulletin Board,Jordan,NO,,
+Bldg 6 – Electrical Eng,6,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 6 – Electrical Eng,6,4,Floor 4 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 7 – Rogers Building,7,1,Floor 1 Board,Bulletin Board,Priya,NO,,Need permission
+Bldg 7 – Rogers Building,7,2,Floor 2 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 7 – Rogers Building,7,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 7 – Rogers Building,7,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 8 – Carr Lab,8,1,Floor 1 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 8 – Carr Lab,8,2,Floor 2 Board,Bulletin Board,Marcus,NO,,
+Bldg 8 – Carr Lab,8,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 8 – Carr Lab,8,4,Floor 4 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 10 – Maclaurin (Great Dome),10,1,Floor 1 Board,Bulletin Board,Elena,NO,,
+Bldg 10 – Maclaurin (Great Dome),10,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 10 – Maclaurin (Great Dome),10,3,Floor 3 Board,Bulletin Board,Elena,NO,,
+Bldg 10 – Maclaurin (Great Dome),10,4,Floor 4 Board,Bulletin Board,Elena,NO,,
+Bldg 9 – Hayden Library Annex,9,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 9 – Hayden Library Annex,9,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 9 – Hayden Library Annex,9,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 11 – Homberg,11,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 11 – Homberg,11,2,Floor 2 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 11 – Homberg,11,3,Floor 3 Board,Bulletin Board,Lina,NO,,
+Bldg 13 – Bush Building,13,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 13 – Bush Building,13,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 13 – Bush Building,13,3,Floor 3 Board,Bulletin Board,Jordan,NO,,Couldn't access
+Bldg 13 – Bush Building,13,4,Floor 4 Board,Bulletin Board,Jordan,NO,,Couldn't access
+Bldg 14 – Hayden Library,14,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 14 – Hayden Library,14,2,Floor 2 Board,Bulletin Board,Priya,NO,,Need permission
+Bldg 14 – Hayden Library,14,3,Floor 3 Board,Bulletin Board,Priya,NO,,
+Bldg 14 – Hayden Library,14,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 16 – Dorrance (MatSci),16,1,Floor 1 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 16 – Dorrance (MatSci),16,2,Floor 2 Board,Bulletin Board,Marcus,NO,,Couldn't access
+Bldg 16 – Dorrance (MatSci),16,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 16 – Dorrance (MatSci),16,4,Floor 4 Board,Bulletin Board,Marcus,NO,,
+Bldg 18 – Dreyfus (Chemistry),18,1,Floor 1 Board,Bulletin Board,Elena,NO,,
+Bldg 18 – Dreyfus (Chemistry),18,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 18 – Dreyfus (Chemistry),18,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 18 – Dreyfus (Chemistry),18,4,Floor 4 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 24 – Nuclear Sci & Eng,24,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 24 – Nuclear Sci & Eng,24,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 24 – Nuclear Sci & Eng,24,3,Floor 3 Board,Bulletin Board,DeShawn,NO,,Couldn't access
+Bldg 24 – Nuclear Sci & Eng,24,4,Floor 4 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 24 – Nuclear Sci & Eng,24,5,Floor 5 Board,Bulletin Board,DeShawn,NO,,Board full
+Bldg 26 – Compton Labs,26,1,Floor 1 Board,Bulletin Board,Lina,NO,,Couldn't access
+Bldg 26 – Compton Labs,26,2,Floor 2 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 26 – Compton Labs,26,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 26 – Compton Labs,26,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 26 – Compton Labs,26,5,Floor 5 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 31 – Sloan Labs (Aero/Astro),31,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 31 – Sloan Labs (Aero/Astro),31,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 31 – Sloan Labs (Aero/Astro),31,3,Floor 3 Board,Bulletin Board,Jordan,NO,,Board full
+Bldg 33 – Guggenheim (Aero),33,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 33 – Guggenheim (Aero),33,2,Floor 2 Board,Bulletin Board,Priya,NO,,
+Bldg 33 – Guggenheim (Aero),33,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 33 – Guggenheim (Aero),33,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 34 – EG&G Education Center,34,1,Floor 1 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 34 – EG&G Education Center,34,2,Floor 2 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 34 – EG&G Education Center,34,3,Floor 3 Board,Bulletin Board,Marcus,NO,,
+Bldg 34 – EG&G Education Center,34,4,Floor 4 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 35 – Sloan Automotive Lab,35,1,Floor 1 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 35 – Sloan Automotive Lab,35,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 35 – Sloan Automotive Lab,35,3,Floor 3 Board,Bulletin Board,Elena,NO,,Need permission
+Bldg 36 – Fairchild,36,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 36 – Fairchild,36,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 36 – Fairchild,36,3,Floor 3 Board,Bulletin Board,DeShawn,NO,,Couldn't access
+Bldg 36 – Fairchild,36,4,Floor 4 Board,Bulletin Board,DeShawn,NO,,Couldn't access
+Bldg 37 – McNair Building,37,1,Floor 1 Board,Bulletin Board,Lina,NO,,
+Bldg 37 – McNair Building,37,2,Floor 2 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 37 – McNair Building,37,3,Floor 3 Board,Bulletin Board,Lina,NO,,
+Bldg 37 – McNair Building,37,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 38 – Fairchild Annex,38,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 38 – Fairchild Annex,38,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 38 – Fairchild Annex,38,3,Floor 3 Board,Bulletin Board,Jordan,NO,,Couldn't access
+Bldg 38 – Fairchild Annex,38,4,Floor 4 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 39 – Brown Building,39,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 39 – Brown Building,39,2,Floor 2 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 39 – Brown Building,39,3,Floor 3 Board,Bulletin Board,Priya,NO,,
+Bldg 32 – Stata Center (CSAIL),32,1,Floor 1 Board,Bulletin Board,Marcus,NO,,
+Bldg 32 – Stata Center (CSAIL),32,2,Floor 2 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 32 – Stata Center (CSAIL),32,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 32 – Stata Center (CSAIL),32,4,Floor 4 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 32 – Stata Center (CSAIL),32,5,Floor 5 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 32 – Stata Center (CSAIL),32,6,Floor 6 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 32 – Stata Center (CSAIL),32,7,Floor 7 Board,Bulletin Board,Marcus,NO,,Need permission
+Bldg 32 – Stata Center (CSAIL),32,8,Floor 8 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 32 – Stata Center (CSAIL),32,9,Floor 9 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 46 – Brain & Cognitive Sci,46,1,Floor 1 Board,Bulletin Board,Elena,NO,,
+Bldg 46 – Brain & Cognitive Sci,46,2,Floor 2 Board,Bulletin Board,Elena,NO,,
+Bldg 46 – Brain & Cognitive Sci,46,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 46 – Brain & Cognitive Sci,46,4,Floor 4 Board,Bulletin Board,Elena,NO,,
+Bldg 46 – Brain & Cognitive Sci,46,5,Floor 5 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 46 – Brain & Cognitive Sci,46,6,Floor 6 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,2,Floor 2 Board,Bulletin Board,DeShawn,NO,,
+Bldg 54 – Green Building (Earth Sci),54,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,4,Floor 4 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg 54 – Green Building (Earth Sci),54,5,Floor 5 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,6,Floor 6 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,7,Floor 7 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,8,Floor 8 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg 54 – Green Building (Earth Sci),54,9,Floor 9 Board,Bulletin Board,DeShawn,NO,,Couldn't access
+Bldg 54 – Green Building (Earth Sci),54,10,Floor 10 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,11,Floor 11 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,12,Floor 12 Board,Bulletin Board,DeShawn,NO,,Couldn't access
+Bldg 54 – Green Building (Earth Sci),54,13,Floor 13 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,14,Floor 14 Board,Bulletin Board,DeShawn,NO,,Board full
+Bldg 54 – Green Building (Earth Sci),54,15,Floor 15 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,16,Floor 16 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,17,Floor 17 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 54 – Green Building (Earth Sci),54,18,Floor 18 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg 56 – Whitaker (BioEng),56,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 56 – Whitaker (BioEng),56,2,Floor 2 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 56 – Whitaker (BioEng),56,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 56 – Whitaker (BioEng),56,4,Floor 4 Board,Bulletin Board,Lina,NO,,
+Bldg 56 – Whitaker (BioEng),56,5,Floor 5 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 66 – Landau (ChemE),66,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 66 – Landau (ChemE),66,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 66 – Landau (ChemE),66,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 66 – Landau (ChemE),66,4,Floor 4 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 66 – Landau (ChemE),66,5,Floor 5 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 68 – Koch Biology,68,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 68 – Koch Biology,68,2,Floor 2 Board,Bulletin Board,Priya,NO,,Need permission
+Bldg 68 – Koch Biology,68,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 68 – Koch Biology,68,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 68 – Koch Biology,68,5,Floor 5 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 68 – Koch Biology,68,6,Floor 6 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 76 – Koch Institute,76,1,Floor 1 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 76 – Koch Institute,76,2,Floor 2 Board,Bulletin Board,Marcus,NO,,
+Bldg 76 – Koch Institute,76,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 76 – Koch Institute,76,4,Floor 4 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 76 – Koch Institute,76,5,Floor 5 Board,Bulletin Board,Marcus,NO,,Couldn't access
+Bldg 76 – Koch Institute,76,6,Floor 6 Board,Bulletin Board,Marcus,NO,,Couldn't access
+Bldg 76 – Koch Institute,76,7,Floor 7 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,1,Floor 1 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,3,Floor 3 Board,Bulletin Board,Elena,NO,,
+Bldg E14 – Media Lab (new),E14,4,Floor 4 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,5,Floor 5 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,6,Floor 6 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E14 – Media Lab (new),E14,7,Floor 7 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E15 – Wiesner (Media Arts),E15,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg E15 – Wiesner (Media Arts),E15,2,Floor 2 Board,Bulletin Board,DeShawn,NO,,
+Bldg E15 – Wiesner (Media Arts),E15,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg E15 – Wiesner (Media Arts),E15,4,Floor 4 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg E17 – MIT Admissions,E17,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg E17 – MIT Admissions,E17,2,Floor 2 Board,Bulletin Board,Lina,NO,,Need permission
+Bldg E17 – MIT Admissions,E17,3,Floor 3 Board,Bulletin Board,Lina,NO,,
+Bldg E18 – Ford Building,E18,1,Floor 1 Board,Bulletin Board,Jordan,NO,,
+Bldg E18 – Ford Building,E18,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg E18 – Ford Building,E18,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg E25 – Whitaker College,E25,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg E25 – Whitaker College,E25,2,Floor 2 Board,Bulletin Board,Priya,NO,,
+Bldg E25 – Whitaker College,E25,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg E25 – Whitaker College,E25,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg E25 – Whitaker College,E25,5,Floor 5 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg E40 – Muckley Building,E40,1,Floor 1 Board,Bulletin Board,Marcus,NO,,
+Bldg E40 – Muckley Building,E40,2,Floor 2 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg E40 – Muckley Building,E40,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg E51 – Tang Center,E51,1,Floor 1 Board,Bulletin Board,Elena,NO,,
+Bldg E51 – Tang Center,E51,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E51 – Tang Center,E51,3,Floor 3 Board,Bulletin Board,Elena,NO,,
+Bldg E51 – Tang Center,E51,4,Floor 4 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E51 – Tang Center,E51,5,Floor 5 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg E52 – Sloan School (Chang),E52,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg E52 – Sloan School (Chang),E52,2,Floor 2 Board,Bulletin Board,DeShawn,NO,,
+Bldg E52 – Sloan School (Chang),E52,3,Floor 3 Board,Bulletin Board,DeShawn,NO,,
+Bldg E52 – Sloan School (Chang),E52,4,Floor 4 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg E52 – Sloan School (Chang),E52,5,Floor 5 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg E52 – Sloan School (Chang),E52,6,Floor 6 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg E53 – Hermann (Econ),E53,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg E53 – Hermann (Econ),E53,2,Floor 2 Board,Bulletin Board,Lina,NO,,
+Bldg E53 – Hermann (Econ),E53,3,Floor 3 Board,Bulletin Board,Lina,NO,,
+Bldg E53 – Hermann (Econ),E53,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg E53 – Hermann (Econ),E53,5,Floor 5 Board,Bulletin Board,Lina,NO,,
+Bldg E62 – Sloan (new),E62,1,Floor 1 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg E62 – Sloan (new),E62,2,Floor 2 Board,Bulletin Board,Jordan,NO,,Need permission
+Bldg E62 – Sloan (new),E62,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg E62 – Sloan (new),E62,4,Floor 4 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg E62 – Sloan (new),E62,5,Floor 5 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg 50 – Walker Memorial,50,1,Floor 1 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 50 – Walker Memorial,50,2,Floor 2 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 50 – Walker Memorial,50,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg 62 – East Campus (West Parallel),62,1,Floor 1 Board,Bulletin Board,Marcus,NO,,
+Bldg 62 – East Campus (West Parallel),62,2,Floor 2 Board,Bulletin Board,Marcus,NO,,
+Bldg 62 – East Campus (West Parallel),62,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 62 – East Campus (West Parallel),62,4,Floor 4 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg 62 – East Campus (West Parallel),62,5,Floor 5 Board,Bulletin Board,Marcus,NO,,
+Bldg 64 – East Campus (East Parallel),64,1,Floor 1 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 64 – East Campus (East Parallel),64,2,Floor 2 Board,Bulletin Board,Elena,NO,,
+Bldg 64 – East Campus (East Parallel),64,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg 64 – East Campus (East Parallel),64,4,Floor 4 Board,Bulletin Board,Elena,NO,,Need permission
+Bldg 64 – East Campus (East Parallel),64,5,Floor 5 Board,Bulletin Board,Elena,NO,,
+Bldg W1 – Maseeh Hall,W1,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W1 – Maseeh Hall,W1,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W1 – Maseeh Hall,W1,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W1 – Maseeh Hall,W1,4,Floor 4 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W1 – Maseeh Hall,W1,5,Floor 5 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W1 – Maseeh Hall,W1,6,Floor 6 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W4 – McCormick Hall,W4,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W4 – McCormick Hall,W4,2,Floor 2 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W4 – McCormick Hall,W4,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W4 – McCormick Hall,W4,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W4 – McCormick Hall,W4,5,Floor 5 Board,Bulletin Board,Lina,NO,,
+Bldg W4 – McCormick Hall,W4,6,Floor 6 Board,Bulletin Board,Lina,NO,,
+Bldg W4 – McCormick Hall,W4,7,Floor 7 Board,Bulletin Board,Lina,NO,,Need permission
+Bldg W4 – McCormick Hall,W4,8,Floor 8 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W7 – Baker House,W7,1,Floor 1 Board,Bulletin Board,Jordan,NO,,
+Bldg W7 – Baker House,W7,2,Floor 2 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg W7 – Baker House,W7,3,Floor 3 Board,Bulletin Board,Jordan,NO,,Couldn't access
+Bldg W7 – Baker House,W7,4,Floor 4 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg W7 – Baker House,W7,5,Floor 5 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg W7 – Baker House,W7,6,Floor 6 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg W46 – New Vassar,W46,1,Floor 1 Board,Bulletin Board,Priya,NO,,
+Bldg W46 – New Vassar,W46,2,Floor 2 Board,Bulletin Board,Priya,NO,,
+Bldg W46 – New Vassar,W46,3,Floor 3 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg W46 – New Vassar,W46,4,Floor 4 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg W46 – New Vassar,W46,5,Floor 5 Board,Bulletin Board,Priya,NO,,
+Bldg W46 – New Vassar,W46,6,Floor 6 Board,Bulletin Board,Priya,YES,2026-03-10,
+Bldg W51 – Burton-Conner,W51,1,Floor 1 Board,Bulletin Board,Marcus,NO,,
+Bldg W51 – Burton-Conner,W51,2,Floor 2 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg W51 – Burton-Conner,W51,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg W51 – Burton-Conner,W51,4,Floor 4 Board,Bulletin Board,Marcus,NO,,Couldn't access
+Bldg W51 – Burton-Conner,W51,5,Floor 5 Board,Bulletin Board,Marcus,NO,,
+Bldg W61 – MacGregor House,W61,1,Floor 1 Board,Bulletin Board,Elena,NO,,Need permission
+Bldg W61 – MacGregor House,W61,2,Floor 2 Board,Bulletin Board,Elena,NO,,Need permission
+Bldg W61 – MacGregor House,W61,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg W61 – MacGregor House,W61,4,Floor 4 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg W61 – MacGregor House,W61,5,Floor 5 Board,Bulletin Board,Elena,NO,,
+Bldg W70 – Next House,W70,1,Floor 1 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W70 – Next House,W70,2,Floor 2 Board,Bulletin Board,DeShawn,NO,,Need permission
+Bldg W70 – Next House,W70,3,Floor 3 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W70 – Next House,W70,4,Floor 4 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W70 – Next House,W70,5,Floor 5 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,2,Floor 2 Board,Bulletin Board,Lina,NO,,
+Bldg W79 – Simmons Hall,W79,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,4,Floor 4 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,5,Floor 5 Board,Bulletin Board,Lina,NO,,Couldn't access
+Bldg W79 – Simmons Hall,W79,6,Floor 6 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,7,Floor 7 Board,Bulletin Board,Lina,NO,,
+Bldg W79 – Simmons Hall,W79,8,Floor 8 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg W79 – Simmons Hall,W79,9,Floor 9 Board,Bulletin Board,Lina,NO,,
+Bldg W79 – Simmons Hall,W79,10,Floor 10 Board,Bulletin Board,Lina,NO,,
+Bldg NW35 – Edgerton Center,NW35,1,Floor 1 Board,Bulletin Board,Jordan,NO,,
+Bldg NW35 – Edgerton Center,NW35,2,Floor 2 Board,Bulletin Board,Jordan,NO,,Board full
+Bldg NW35 – Edgerton Center,NW35,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,
+Bldg W16 – Kresge Auditorium,W16,1,Floor 1 Board,Bulletin Board,Priya,NO,,
+Bldg W16 – Kresge Auditorium,W16,2,Floor 2 Board,Bulletin Board,Priya,NO,,Board full
+Bldg W20 – Student Center,W20,1,Floor 1 Board,Bulletin Board,Marcus,NO,,
+Bldg W20 – Student Center,W20,2,Floor 2 Board,Bulletin Board,Marcus,NO,,
+Bldg W20 – Student Center,W20,3,Floor 3 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg W20 – Student Center,W20,4,Floor 4 Board,Bulletin Board,Marcus,NO,,
+Bldg W20 – Student Center,W20,5,Floor 5 Board,Bulletin Board,Marcus,YES,2026-03-10,
+Bldg W31 – du Pont Gymnasium,W31,1,Floor 1 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg W31 – du Pont Gymnasium,W31,2,Floor 2 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg W31 – du Pont Gymnasium,W31,3,Floor 3 Board,Bulletin Board,Elena,YES,2026-03-10,
+Bldg W35 – Zesiger Sports Center,W35,1,Floor 1 Board,Bulletin Board,DeShawn,NO,,
+Bldg W35 – Zesiger Sports Center,W35,2,Floor 2 Board,Bulletin Board,DeShawn,YES,2026-03-10,
+Bldg W35 – Zesiger Sports Center,W35,3,Floor 3 Board,Bulletin Board,DeShawn,NO,,
+Bldg 45 – Schwarzman Computing,45,1,Floor 1 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 45 – Schwarzman Computing,45,2,Floor 2 Board,Bulletin Board,Lina,NO,,Board full
+Bldg 45 – Schwarzman Computing,45,3,Floor 3 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg 45 – Schwarzman Computing,45,4,Floor 4 Board,Bulletin Board,Lina,NO,,
+Bldg 45 – Schwarzman Computing,45,5,Floor 5 Board,Bulletin Board,Lina,YES,2026-03-10,
+Bldg E28 – MIT Museum,E28,1,Floor 1 Board,Bulletin Board,Jordan,NO,,Board full
+Bldg E28 – MIT Museum,E28,2,Floor 2 Board,Bulletin Board,Jordan,NO,,
+Bldg E28 – MIT Museum,E28,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10,`;
+  rawData = parseCSV(demoCSV);
+  sheetUrl = "__demo__";
+  document.getElementById("setup-screen").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  renderDashboard();
+}
+
+
+async function refreshData() {
+  if (!sheetUrl) return;
+  if (sheetUrl === "__demo__") {
+    document.getElementById("last-updated").textContent = "Demo mode — connect a Google Sheet for live data";
+    return;
+  }
+  try {
+    rawData = await fetchData(sheetUrl);
+    renderDashboard();
+  } catch (e) {
+    document.getElementById("error-area").innerHTML = `<div class="error-msg">Failed to refresh: ${e.message}</div>`;
+  }
+}
+
+// ─── COLOR HELPERS ─────────────────────────────────────────────────
+function cc(pct) {
+  if (pct >= 80) return { bg: "var(--green-bg)", fg: "var(--green-fg)", bar: "var(--green)", glow: "rgba(34,197,94,0.3)" };
+  if (pct >= 50) return { bg: "var(--yellow-bg)", fg: "var(--yellow-fg)", bar: "var(--yellow)", glow: "rgba(234,179,8,0.3)" };
+  return { bg: "var(--red-bg)", fg: "var(--red-fg)", bar: "var(--red)", glow: "rgba(239,68,68,0.3)" };
+}
+
+function barHTML(posted, total, h = 7) {
+  const pct = total > 0 ? (posted / total) * 100 : 0;
+  const c = cc(pct);
+  return `<div class="bar-wrap">
+    <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c.bar};height:${h}px;"></div></div>
+    <span class="bar-pct" style="color:${c.fg}">${Math.round(pct)}%</span>
+  </div>`;
+}
+
+// ─── COMPUTE STATS ─────────────────────────────────────────────────
+function getFiltered() {
+  let d = rawData;
+  if (filterAssignee !== "all") d = d.filter(r => r.assignee === filterAssignee);
+  if (filterStatus === "posted") d = d.filter(r => r.posted);
+  if (filterStatus === "missing") d = d.filter(r => !r.posted);
+  return d;
+}
+
+function getBuildingStats(data) {
+  const map = {};
+  data.forEach(r => {
+    if (!map[r.building]) map[r.building] = { total: 0, posted: 0, assignees: new Set(), floors: new Set(), bldgNum: r.bldgNum };
+    map[r.building].total++;
+    if (r.posted) map[r.building].posted++;
+    map[r.building].assignees.add(r.assignee);
+    map[r.building].floors.add(r.floor);
+  });
+  return Object.entries(map).map(([name, s]) => {
+    const shortName = name.includes("–") ? name.split("–")[1].trim() : name;
+    const coords = BUILDING_COORDS[s.bldgNum] || null;
+    return { name, shortName, ...s, pct: s.total > 0 ? (s.posted / s.total) * 100 : 0, coords };
+  }).sort((a, b) => a.pct - b.pct);
+}
+
+function getAssigneeStats(data) {
+  const map = {};
+  data.forEach(r => {
+    if (!map[r.assignee]) map[r.assignee] = { total: 0, posted: 0 };
+    map[r.assignee].total++;
+    if (r.posted) map[r.assignee].posted++;
+  });
+  return Object.entries(map).map(([name, s]) => ({ name, ...s, pct: s.total > 0 ? (s.posted / s.total) * 100 : 0 })).sort((a, b) => b.pct - a.pct);
+}
+
+// ─── LEAFLET MAP INITIALIZATION ────────────────────────────────────
+function createLeafletMap() {
+  const mapEl = document.getElementById("map");
+  if (!mapEl || leafletMap) return;
+
+  // Center on MIT campus
+  const mitCenter = [42.3601, -71.0942];
+
+  // Initialize Leaflet map
+  leafletMap = L.map('map', {
+    center: mitCenter,
+    zoom: 16,
+    scrollWheelZoom: true,
+    zoomControl: true
+  });
+
+  // Add OpenStreetMap tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+    minZoom: 14
+  }).addTo(leafletMap);
+
+  // Add MIT campus boundary (optional visual enhancement)
+  const mitBounds = [
+    [42.3545, -71.1030],
+    [42.3640, -71.0815]
+  ];
+
+  return leafletMap;
+}
+
+// ─── MAP RENDERING ─────────────────────────────────────────────────
+function renderMap(buildingStats) {
+  // Initialize Leaflet map if not already done
+  if (!leafletMap) {
+    createLeafletMap();
+  }
+
+  // Clear existing markers
+  mapMarkers.forEach(m => leafletMap.removeLayer(m));
+  mapMarkers = [];
+
+  // Add markers for each building
+  buildingStats.forEach(b => {
+    if (!b.coords) return;
+
+    const c = cc(b.pct);
+    const isSel = selectedBuilding === b.name;
+
+    // Marker size
+    const size = isSel ? 26 : 18;
+    const fontSize = isSel ? '11px' : '9px';
+
+    // Create custom div icon
+    const iconHtml = `
+      <div class="marker-circle ${isSel ? 'selected' : ''}" style="
+        width: ${size}px;
+        height: ${size}px;
+        background: ${isSel ? c.bar : '#fff'};
+        border: ${isSel ? '3px' : '2.5px'} solid ${c.bar};
+        color: ${isSel ? '#fff' : '#333'};
+        font-size: ${fontSize};
+        line-height: ${size - (isSel ? 6 : 5)}px;
+      ">${b.bldgNum}</div>
+    `;
+
+    const customIcon = L.divIcon({
+      html: iconHtml,
+      className: 'custom-marker',
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2]
+    });
+
+    // Create marker
+    const marker = L.marker([b.coords.lat, b.coords.lng], {
+      icon: customIcon,
+      title: `${b.shortName} (${b.bldgNum}) - ${Math.round(b.pct)}% posted`,
+      zIndexOffset: isSel ? 1000 : 100
+    });
+
+    // Add click handler
+    marker.on('click', () => {
+      selectBuilding(b.name);
+    });
+
+    // Add popup with building info
+    marker.bindPopup(`
+      <div style="font-family: 'DM Sans', sans-serif;">
+        <strong style="font-size: 14px;">${b.shortName}</strong><br>
+        <span style="font-family: 'DM Mono', monospace; font-size: 11px; color: #666;">Building ${b.bldgNum}</span><br>
+        <span style="font-size: 12px; color: ${c.fg}; font-weight: 600;">${Math.round(b.pct)}% posted</span><br>
+        <span style="font-size: 11px; color: #888;">${b.posted}/${b.total} spots</span>
+      </div>
+    `);
+
+    marker.addTo(leafletMap);
+    mapMarkers.push(marker);
+  });
+
+  return "";  // No longer returning SVG
+}
+
+// ─── DETAIL PANEL ──────────────────────────────────────────────────
+function renderDetail(bldgName, data) {
+  const spots = data.filter(r => r.building === bldgName);
+  if (!spots.length) return "";
+
+  const posted = spots.filter(r => r.posted).length;
+  const floors = [...new Set(spots.map(r => r.floor))].sort((a, b) => {
+    const an = parseInt(a), bn = parseInt(b);
+    if (isNaN(an) && isNaN(bn)) return a.localeCompare(b);
+    if (isNaN(an)) return -1;
+    return isNaN(bn) ? 1 : an - bn;
+  });
+
+  let floorsHTML = "";
+  floors.forEach(f => {
+    const fSpots = spots.filter(r => r.floor === f);
+    const label = f.startsWith("B") ? `Basement ${f.slice(1)}` : `Floor ${f}`;
+    let spotsHTML = "";
+    fSpots.forEach(s => {
+      const cls = s.posted ? "up" : "missing";
+      const noteHTML = s.notes ? ` <span class="note">— ${s.notes}</span>` : "";
+      spotsHTML += `
+        <div class="spot-row">
+          <div class="spot-dot ${cls}"></div>
+          <div class="spot-info">
+            <div class="spot-name">${s.spot}</div>
+            <div class="spot-meta">${s.type} · ${s.assignee}${noteHTML}</div>
+          </div>
+          <span class="spot-badge ${cls}">${s.posted ? "UP" : "MISSING"}</span>
+        </div>`;
+    });
+    floorsHTML += `<div class="floor-section"><div class="floor-label">${label}</div>${spotsHTML}</div>`;
+  });
+
+  return `<div class="detail-panel">
+    <div class="detail-header">
+      <div>
+        <h3>${bldgName}</h3>
+        <div class="detail-sub">${floors.length} floor${floors.length !== 1 ? "s" : ""} · ${posted}/${spots.length} posted</div>
+      </div>
+      <button class="detail-close" onclick="selectBuilding(null)">Close</button>
+    </div>
+    <div class="detail-body">
+      <div style="margin-bottom:16px">${barHTML(posted, spots.length, 8)}</div>
+      ${floorsHTML}
+    </div>
+  </div>`;
+}
+
+// ─── FULL RENDER ───────────────────────────────────────────────────
+function renderDashboard() {
+  const data = getFiltered();
+  const bStats = getBuildingStats(data);
+  const aStats = getAssigneeStats(data);
+  const totalPosted = data.filter(r => r.posted).length;
+  const totalSpots = data.length;
+  const overallPct = totalSpots > 0 ? Math.round((totalPosted / totalSpots) * 100) : 0;
+  const allAssignees = [...new Set(rawData.map(r => r.assignee))].sort();
+
+  // Header
+  document.getElementById("date-line").textContent = `campus-wide posting tracker · ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  const oc = cc(overallPct);
+  document.getElementById("overall-pct").textContent = overallPct + "%";
+  document.getElementById("overall-pct").style.color = oc.bar;
+  document.getElementById("overall-sub").textContent = `${totalPosted}/${totalSpots} spots`;
+  document.getElementById("last-updated").textContent = sheetUrl === "__demo__"
+    ? "Demo mode — sample data · connect a Google Sheet for live data"
+    : `Last refreshed: ${new Date().toLocaleTimeString()}`;
+
+  // Filters
+  let filtersHTML = `
+    <div class="pill-group">
+      <div class="pill ${viewMode === 'map' ? 'active' : ''}" onclick="setView('map')">Map</div>
+      <div class="pill ${viewMode === 'list' ? 'active' : ''}" onclick="setView('list')">List</div>
+    </div>
+    <div class="divider"></div>
+    <div class="pill ${filterAssignee === 'all' ? 'active' : ''}" onclick="setAssignee('all')">Everyone</div>`;
+  allAssignees.forEach(a => {
+    filtersHTML += `<div class="pill ${filterAssignee === a ? 'active' : ''}" onclick="setAssignee('${a}')">${a}</div>`;
+  });
+  filtersHTML += `<div class="divider"></div>
+    <div class="pill ${filterStatus === 'missing' ? 'active' : ''}" style="${filterStatus === 'missing' ? 'background:var(--red);color:#fff;border-color:var(--red);' : ''}" onclick="setStatus('${filterStatus === 'missing' ? 'all' : 'missing'}')">Missing only</div>`;
+  document.getElementById("filters").innerHTML = filtersHTML;
+
+  // Map
+  if (viewMode === "map") {
+    document.getElementById("map-section").style.display = "block";
+    document.getElementById("list-section").style.display = "none";
+    renderMap(bStats);
+  } else {
+    document.getElementById("map-section").style.display = "none";
+    document.getElementById("list-section").style.display = "flex";
+    let listHTML = "";
+    bStats.forEach(b => {
+      const c = cc(b.pct);
+      const isSel = selectedBuilding === b.name;
+      listHTML += `
+        <div class="bldg-card ${isSel ? 'selected' : ''}" style="${isSel ? `background:${c.bg};border-color:${c.bar};box-shadow:0 2px 12px ${c.glow};` : ''}" onclick="selectBuilding('${b.name.replace(/'/g, "\\'")}')">
+          <div class="bldg-top">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span class="bldg-num">${b.bldgNum}</span>
+              <span class="bldg-name">${b.shortName}</span>
+            </div>
+            <span class="bldg-count">${b.posted}/${b.total}</span>
+          </div>
+          ${barHTML(b.posted, b.total)}
+        </div>`;
+    });
+    document.getElementById("list-section").innerHTML = listHTML;
+  }
+
+  // Detail
+  if (selectedBuilding && data.some(r => r.building === selectedBuilding)) {
+    document.getElementById("detail-section").style.display = "block";
+    document.getElementById("detail-section").innerHTML = renderDetail(selectedBuilding, data);
+  } else {
+    document.getElementById("detail-section").style.display = "none";
+  }
+
+  // Team
+  let teamHTML = "";
+  aStats.forEach(a => {
+    const c = cc(a.pct);
+    const isActive = filterAssignee === a.name;
+    teamHTML += `
+      <div class="team-card" style="${isActive ? `background:${c.bg};border-color:${c.bar};box-shadow:0 2px 8px ${c.glow};` : ''}" onclick="setAssignee('${filterAssignee === a.name ? 'all' : a.name}')">
+        <div class="team-name">${a.name}</div>
+        ${barHTML(a.posted, a.total, 6)}
+        <div class="team-count">${a.posted}/${a.total} spots</div>
+      </div>`;
+  });
+  document.getElementById("team-section").innerHTML = teamHTML;
+}
+
+// ─── INTERACTION HANDLERS ──────────────────────────────────────────
+function selectBuilding(name) {
+  selectedBuilding = selectedBuilding === name ? null : name;
+  renderDashboard();
+  if (selectedBuilding) {
+    const el = document.getElementById("detail-section");
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+  }
+}
+
+function setAssignee(a) { filterAssignee = a; selectedBuilding = null; renderDashboard(); }
+function setStatus(s) { filterStatus = s; selectedBuilding = null; renderDashboard(); }
+function setView(v) { viewMode = v; renderDashboard(); }
+
+// ─── INIT ──────────────────────────────────────────────────────────
+(function init() {
+  const saved = localStorage.getItem("mit-flyer-sheet-url");
+  if (saved) {
+    sheetUrl = saved;
+    document.getElementById("sheet-url").value = saved;
+    // Auto-connect
+    document.getElementById("setup-screen").innerHTML = `<div class="status-msg"><div class="spinner"></div>Loading dashboard...</div>`;
+    fetchData(saved).then(data => {
+      rawData = data;
+      document.getElementById("setup-screen").style.display = "none";
+      document.getElementById("dashboard").style.display = "block";
+      renderDashboard();
+    }).catch(() => {
+      // Show setup again if auto-load fails
+      localStorage.removeItem("mit-flyer-sheet-url");
+      location.reload();
+    });
+  }
+})();
+</script>
+</body>
+</html>
