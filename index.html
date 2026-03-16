@@ -238,6 +238,12 @@
     font-weight: 500;
   }
   .refresh-btn:hover { background: var(--subtle); }
+  .reset-btn {
+    font-size: 11px; font-family: 'DM Mono', monospace; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid #fca5a5; background: var(--card); cursor: pointer; color: var(--red-fg);
+    font-weight: 500;
+  }
+  .reset-btn:hover { background: var(--red-bg); }
 </style>
 </head>
 <body>
@@ -296,7 +302,7 @@
     <div class="refresh-bar">
       <span id="last-updated">Loading...</span>
       <div style="display:flex;gap:8px;">
-        <button class="refresh-btn" onclick="changeSheet()">⚙ Change Sheet</button>
+        <button class="reset-btn" onclick="downloadResetCSV()">↺ Download Reset CSV</button>
         <button class="refresh-btn" onclick="refreshData()">↻ Refresh</button>
       </div>
     </div>
@@ -344,137 +350,138 @@ let mapMarkers = [];
 
 // Comprehensive MIT building coordinates (excluding undergraduate dorms)
 const BUILDING_COORDS = {
-  // Main Campus - Numbered Buildings
-  "1": { lat: 42.3596, lng: -71.0942, name: "Building 1" },
-  "2": { lat: 42.3598, lng: -71.0928, name: "Mathematics" },
-  "3": { lat: 42.3594, lng: -71.0934, name: "Maclaurin (West)" },
-  "4": { lat: 42.3598, lng: -71.0919, name: "Maclaurin (East)" },
-  "5": { lat: 42.3594, lng: -71.0948, name: "Chemistry" },
-  "6": { lat: 42.3602, lng: -71.0924, name: "Eastman Labs" },
-  "6C": { lat: 42.3603, lng: -71.0922, name: "Building 6C" },
-  "7": { lat: 42.3592, lng: -71.0936, name: "Rogers Building" },
-  "7A": { lat: 42.3591, lng: -71.0935, name: "Rogers Annex" },
-  "8": { lat: 42.3602, lng: -71.0914, name: "Building 8" },
-  "9": { lat: 42.3592, lng: -71.0907, name: "Building 9" },
-  "10": { lat: 42.3594, lng: -71.0927, name: "Great Dome" },
-  "11": { lat: 42.359, lng: -71.092, name: "Building 11" },
-  "12": { lat: 42.3588, lng: -71.0924, name: "Building 12" },
-  "13": { lat: 42.3593, lng: -71.0916, name: "Bush Building" },
-  "14": { lat: 42.359, lng: -71.0903, name: "Hayden Library" },
-  "16": { lat: 42.3602, lng: -71.0908, name: "Dorrance (MatSci)" },
-  "17": { lat: 42.3604, lng: -71.0902, name: "Building 17" },
-  "18": { lat: 42.3598, lng: -71.0903, name: "Dreyfus (Chem)" },
-  "24": { lat: 42.3601, lng: -71.0897, name: "Nuclear Sci & Eng" },
-  "26": { lat: 42.3605, lng: -71.0912, name: "Compton Labs" },
-  "31": { lat: 42.36, lng: -71.0935, name: "Sloan Labs (Aero)" },
-  "32": { lat: 42.3616, lng: -71.0906, name: "Stata Center" },
-  "33": { lat: 42.3598, lng: -71.0938, name: "Guggenheim (Aero)" },
-  "34": { lat: 42.3607, lng: -71.093, name: "EG&G Education" },
-  "35": { lat: 42.3604, lng: -71.0935, name: "Sloan Auto Lab" },
-  "36": { lat: 42.3604, lng: -71.092, name: "Fairchild" },
-  "37": { lat: 42.3601, lng: -71.0924, name: "McNair" },
-  "38": { lat: 42.3605, lng: -71.0928, name: "Fairchild Annex" },
-  "39": { lat: 42.36, lng: -71.093, name: "Brown Building" },
-  "41": { lat: 42.3597, lng: -71.0945, name: "Building 41" },
-  "42": { lat: 42.3595, lng: -71.0947, name: "Building 42" },
-  "43": { lat: 42.3593, lng: -71.0949, name: "Building 43" },
-  "45": { lat: 42.3619, lng: -71.0915, name: "Schwarzman Computing" },
-  "46": { lat: 42.3621, lng: -71.0907, name: "Brain & Cog Sci" },
-  "48": { lat: 42.3618, lng: -71.0902, name: "Building 48" },
-  "50": { lat: 42.3587, lng: -71.0899, name: "Walker Memorial" },
-  "51": { lat: 42.3589, lng: -71.0904, name: "Building 51" },
-  "54": { lat: 42.3601, lng: -71.0912, name: "Green Building" },
-  "56": { lat: 42.3608, lng: -71.0908, name: "Whitaker (BioEng)" },
-  "57": { lat: 42.361, lng: -71.0906, name: "Building 57" },
-  "62": { lat: 42.3601, lng: -71.088, name: "Building 62" },
-  "64": { lat: 42.3604, lng: -71.0877, name: "Building 64" },
-  "66": { lat: 42.3609, lng: -71.0916, name: "Landau (ChemE)" },
-  "68": { lat: 42.3612, lng: -71.092, name: "Koch Biology" },
-  "76": { lat: 42.3615, lng: -71.0925, name: "Koch Institute" },
+
+  // Main Campus Buildings
+  "1": { lat: 42.358086, lng: -71.092357, name: "Pierce Laboratory" },
+  "2": { lat: 42.358813, lng: -71.090183, name: "The Simons Building" },
+  "3": { lat: 42.359007, lng: -71.092397, name: "Maclaurin Buildings (3)" },
+  "4": { lat: 42.359443, lng: -71.091087, name: "Maclaurin Buildings (4)" },
+  "5": { lat: 42.358709, lng: -71.092923, name: "Pratt School" },
+  "6": { lat: 42.359539, lng: -71.090455, name: "Eastman Laboratories" },
+  "6C": { lat: 42.359673, lng: -71.090836, name: "Building 6C" },
+  "7": { lat: 42.359289, lng: -71.093187, name: "Rogers Building" },
+  "7A": { lat: 42.359496, lng: -71.093194, name: "Building 7A" },
+  "8": { lat: 42.359993, lng: -71.090864, name: "Building 8" },
+  "9": { lat: 42.35975, lng: -71.093562, name: "Samuel Tak Lee Building" },
+  "10": { lat: 42.359677, lng: -71.092016, name: "Maclaurin Buildings (10)" },
+  "11": { lat: 42.359522, lng: -71.092773, name: "Homberg Building" },
+  "12": { lat: 42.360261, lng: -71.091462, name: "Lisa T. Su Building" },
+  "13": { lat: 42.359945, lng: -71.09255, name: "Bush Building" },
+  "14": { lat: 42.359183, lng: -71.089304, name: "Hayden Memorial Library" },
+  "16": { lat: 42.360438, lng: -71.090579, name: "Dorrance Building" },
+  "17": { lat: 42.360184, lng: -71.093553, name: "Wright Brothers Wind Tunnel" },
+  "18": { lat: 42.36007, lng: -71.089821, name: "Dreyfus Building" },
+  "24": { lat: 42.360667, lng: -71.092015, name: "Building 24" },
+  "26": { lat: 42.360858, lng: -71.091153, name: "Compton Laboratories" },
+  "31": { lat: 42.360374, lng: -71.093062, name: "Sloan Laboratories" },
+  "32": { lat: 42.361597, lng: -71.090569, name: "Ray and Maria Stata Center" },
+  "33": { lat: 42.360126, lng: -71.093789, name: "Guggenheim Laboratory" },
+  "34": { lat: 42.361138, lng: -71.091951, name: "EG&G Education Center" },
+  "35": { lat: 42.360381, lng: -71.094028, name: "Sloan Laboratory" },
+  "36": { lat: 42.361437, lng: -71.091668, name: "Fairchild Building (36)" },
+  "37": { lat: 42.360684, lng: -71.093247, name: "McNair Building" },
+  "38": { lat: 42.361074, lng: -71.09235, name: "Fairchild Building (38)" },
+  "39": { lat: 42.360857, lng: -71.092731, name: "Brown Building" },
+  "41": { lat: 42.36076, lng: -71.09416, name: "Building 41" },
+  "42": { lat: 42.361108, lng: -71.09351, name: "Power Plant" },
+  "43": { lat: 42.361145, lng: -71.093211, name: "Power Plant Annex" },
+  "45": { lat: 42.361731, lng: -71.0924, name: "Schwarzman College of Computing" },
+  "46": { lat: 42.362328, lng: -71.091643, name: "Brain and Cognitive Sciences (BCS)" },
+  "48": { lat: 42.362432, lng: -71.090665, name: "Parsons Laboratory" },
+  "50": { lat: 42.359362, lng: -71.08832, name: "Walker Memorial" },
+  "51": { lat: 42.358517, lng: -71.08773, name: "Wood Sailing Pavilion" },
+  "54": { lat: 42.360324, lng: -71.089326, name: "Green Building" },
+  "56": { lat: 42.3607, lng: -71.089862, name: "Whitaker Building" },
+  "57": { lat: 42.361142, lng: -71.09014, name: "Wang Fitness Center and Alumni Pool" },
+  "62": { lat: 42.360229, lng: -71.088683, name: "East Campus" },
+  "64": { lat: 42.360405, lng: -71.088141, name: "East Campus" },
+  "66": { lat: 42.36092, lng: -71.089029, name: "Landau Building" },
+  "68": { lat: 42.361622, lng: -71.088639, name: "Koch Biology Building" },
+  "76": { lat: 42.362296, lng: -71.089276, name: "The David H. Koch Institute for Integrative Cancer Research at MIT" },
 
   // East Campus Buildings
-  "E1": { lat: 42.3596, lng: -71.0865, name: "President's House" },
-  "E2": { lat: 42.3598, lng: -71.0867, name: "Building E2" },
-  "E14": { lat: 42.3603, lng: -71.0872, name: "Media Lab" },
-  "E15": { lat: 42.3607, lng: -71.0876, name: "Wiesner (Media)" },
-  "E17": { lat: 42.3604, lng: -71.087, name: "Mudd (Admissions)" },
-  "E18": { lat: 42.3605, lng: -71.0865, name: "Ford Building" },
-  "E19": { lat: 42.3607, lng: -71.0863, name: "Ford Annex" },
-  "E23": { lat: 42.3609, lng: -71.0858, name: "Building E23" },
-  "E25": { lat: 42.3608, lng: -71.0848, name: "Whitaker Health" },
-  "E28": { lat: 42.3622, lng: -71.0862, name: "MIT Museum" },
-  "E37": { lat: 42.36, lng: -71.084, name: "Building E37" },
-  "E38": { lat: 42.3602, lng: -71.0838, name: "Building E38" },
+  "E1": { lat: 42.359603, lng: -71.086964, name: "Gray House" },
+  "E2": { lat: 42.359956, lng: -71.086867, name: "70 Amherst Street" },
+  "E14": { lat: 42.360464, lng: -71.087332, name: "E14" },
+  "E15": { lat: 42.360838, lng: -71.087635, name: "Wiesner Building" },
+  "E17": { lat: 42.361484, lng: -71.087886, name: "Mudd Building" },
+  "E18": { lat: 42.361767, lng: -71.087793, name: "Ford Building (E18)" },
+  "E19": { lat: 42.362129, lng: -71.087952, name: "Ford Building (E19)" },
+  "E23": { lat: 42.361022, lng: -71.086632, name: "MIT Health" },
+  "E25": { lat: 42.361669, lng: -71.08695, name: "Whitaker College" },
+  "E28": { lat: 42.362129, lng: -71.086682, name: "E28" },
+  "E37": { lat: 42.361888, lng: -71.085518, name: "Building E37" },
+  "E38": { lat: 42.362065, lng: -71.08572, name: "Building E38" },
   "E39": { lat: 42.3604, lng: -71.0836, name: "Building E39" },
-  "E40": { lat: 42.3614, lng: -71.086, name: "Muckley" },
+  "E40": { lat: 42.361163, lng: -71.084853, name: "Muckley Building" },
   "E48": { lat: 42.3616, lng: -71.0852, name: "Building E48" },
-  "E51": { lat: 42.361, lng: -71.0845, name: "Tang Center" },
-  "E52": { lat: 42.3613, lng: -71.0835, name: "Sloan School" },
-  "E53": { lat: 42.3612, lng: -71.0838, name: "Hermann (Econ)" },
+  "E51": { lat: 42.360554, lng: -71.084492, name: "Tang Center" },
+  "E52": { lat: 42.360736, lng: -71.083677, name: "Morris and Sophie Chang Building" },
+  "E53": { lat: 42.361186, lng: -71.083593, name: "Hermann Building" },
   "E55": { lat: 42.3615, lng: -71.084, name: "Building E55" },
-  "E60": { lat: 42.3618, lng: -71.0832, name: "Building E60" },
-  "E62": { lat: 42.3617, lng: -71.083, name: "Sloan (new)" },
-  "E70": { lat: 42.362, lng: -71.0825, name: "Building E70" },
-  "E90": { lat: 42.3625, lng: -71.085, name: "Building E90" },
-  "E94": { lat: 42.3627, lng: -71.0845, name: "Building E94" },
+  "E60": { lat: 42.361162, lng: -71.082165, name: "Arthur D Little Building" },
+  "E62": { lat: 42.361352, lng: -71.082648, name: "MIT Sloan" },
+  "E70": { lat: 42.362749, lng: -71.083463, name: "One Broadway" },
+  "E90": { lat: 42.362223, lng: -71.080037, name: "Building E90" },
+  "E94": { lat: 42.363617, lng: -71.079273, name: "Building E94" },
 
   // North Campus Buildings
-  "N9": { lat: 42.364, lng: -71.088, name: "Building N9" },
-  "N10": { lat: 42.3642, lng: -71.0882, name: "Building N10" },
+  "N9": { lat: 42.360953, lng: -71.095194, name: "Superconducting Test Facility" },
+  "N10": { lat: 42.360863, lng: -71.095451, name: "High Voltage Research Lab" },
   "N42": { lat: 42.3638, lng: -71.0895, name: "Building N42" },
-  "N51": { lat: 42.3645, lng: -71.089, name: "Building N51" },
-  "N52": { lat: 42.3647, lng: -71.0892, name: "Building N52" },
-  "N57": { lat: 42.365, lng: -71.0888, name: "Building N57" },
+  "N51": { lat: 42.362284, lng: -71.097628, name: "Building N51" },
+  "N52": { lat: 42.362273, lng: -71.097188, name: "N52" },
+  "N57": { lat: 42.363011, lng: -71.09883, name: "Building N57" },
 
   // Northeast Campus Buildings
-  "NE18": { lat: 42.3655, lng: -71.0865, name: "Building NE18" },
-  "NE36": { lat: 42.3658, lng: -71.087, name: "Building NE36" },
+  "NE18": { lat: 42.362647, lng: -71.085173, name: "255 Main Street" },
+  "NE36": { lat: 42.36438, lng: -71.087486, name: "Building NE36" },
   "NE46": { lat: 42.366, lng: -71.0868, name: "Building NE46" },
-  "NE47": { lat: 42.3662, lng: -71.0866, name: "Building NE47" },
-  "NE48": { lat: 42.3664, lng: -71.0864, name: "Building NE48" },
-  "NE49": { lat: 42.3666, lng: -71.0862, name: "Building NE49" },
-  "NE55": { lat: 42.3668, lng: -71.086, name: "Building NE55" },
-  "NE83": { lat: 42.367, lng: -71.0875, name: "Building NE83" },
-  "NE103": { lat: 42.3672, lng: -71.088, name: "Building NE103" },
+  "NE47": { lat: 42.363466, lng: -71.092597, name: "500 Technology Square" },
+  "NE48": { lat: 42.364031, lng: -71.092727, name: "700 Technology Square" },
+  "NE49": { lat: 42.36339, lng: -71.093117, name: "600 Technology Square" },
+  "NE55": { lat: 42.365654, lng: -71.09263, name: "Building NE55" },
+  "NE83": { lat: 42.36607, lng: -71.09085, name: "Building NE83" },
+  "NE103": { lat: 42.36706, lng: -71.080467, name: "222 Third Street" },
 
   // Northwest Campus Buildings
-  "NW10": { lat: 42.3628, lng: -71.0955, name: "Building NW10" },
-  "NW12": { lat: 42.363, lng: -71.0958, name: "Building NW12" },
-  "NW13": { lat: 42.3632, lng: -71.096, name: "Building NW13" },
-  "NW14": { lat: 42.3634, lng: -71.0962, name: "Magnet Lab" },
-  "NW17": { lat: 42.3636, lng: -71.0965, name: "Building NW17" },
-  "NW21": { lat: 42.3638, lng: -71.097, name: "Building NW21" },
-  "NW22": { lat: 42.364, lng: -71.0972, name: "Building NW22" },
-  "NW23": { lat: 42.3642, lng: -71.0974, name: "Building NW23" },
-  "NW30": { lat: 42.3644, lng: -71.0976, name: "Building NW30" },
-  "NW35": { lat: 42.3632, lng: -71.0968, name: "Edgerton Center" },
-  "NW61": { lat: 42.3646, lng: -71.0978, name: "Building NW61" },
-  "NW86": { lat: 42.3648, lng: -71.098, name: "Building NW86" },
-  "NW98": { lat: 42.365, lng: -71.0982, name: "Building NW98" },
+  "NW10": { lat: 42.360319, lng: -71.098137, name: "Edgerton House" },
+  "NW12": { lat: 42.360103, lng: -71.096863, name: "Building NW12" },
+  "NW13": { lat: 42.359885, lng: -71.097362, name: "Building NW13" },
+  "NW14": { lat: 42.359632, lng: -71.097899, name: "Francis Bitter Magnet Lab (NW14)" },
+  "NW17": { lat: 42.359856, lng: -71.099142, name: "Plasma Science & Fusion Center (NW17)" },
+  "NW21": { lat: 42.359064, lng: -71.099146, name: "Plasma Science & Fusion Center (NW21)" },
+  "NW22": { lat: 42.359712, lng: -71.099568, name: "Plasma Science & Fusion Center (NW22)" },
+  "NW23": { lat: 42.359566, lng: -71.099875, name: "NW23" },
+  "NW30": { lat: 42.358647, lng: -71.099973, name: "The Warehouse" },
+  "NW35": { lat: 42.358798, lng: -71.101439, name: "Ashdown House" },
+  "NW61": { lat: 42.361845, lng: -71.098286, name: "Random Hall" },
+  "NW86": { lat: 42.35972, lng: -71.102219, name: "Sidney Pacific" },
+  "NW98": { lat: 42.359593, lng: -71.104755, name: "Building NW98" },
 
-  // West Campus Buildings (non-dorm)
-  "W2": { lat: 42.3575, lng: -71.0935, name: "Building W2" },
-  "W5": { lat: 42.3572, lng: -71.094, name: "Green Hall" },
-  "W8": { lat: 42.357, lng: -71.0945, name: "Building W8" },
-  "W11": { lat: 42.3568, lng: -71.095, name: "Building W11" },
+  // West Campus Buildings
+  "W2": { lat: 42.357256, lng: -71.093841, name: "Building W2" },
+  "W5": { lat: 42.356919, lng: -71.095101, name: "Green Hall" },
+  "W8": { lat: 42.355312, lng: -71.096827, name: "Richard J. Resch Boathouse" },
+  "W11": { lat: 42.358261, lng: -71.093536, name: "Building W11" },
   "W13": { lat: 42.3566, lng: -71.0955, name: "Building W13" },
-  "W15": { lat: 42.3564, lng: -71.096, name: "Building W15" },
-  "W16": { lat: 42.358, lng: -71.096, name: "Kresge Auditorium" },
-  "W18": { lat: 42.3562, lng: -71.0965, name: "Building W18" },
-  "W20": { lat: 42.3573, lng: -71.0957, name: "Student Center" },
-  "W31": { lat: 42.3567, lng: -71.0975, name: "du Pont Gym" },
-  "W32": { lat: 42.3569, lng: -71.0978, name: "du Pont Athletic" },
-  "W35": { lat: 42.3568, lng: -71.097, name: "Zesiger Sports" },
-  "W41": { lat: 42.3565, lng: -71.098, name: "Building W41" },
-  "W46": { lat: 42.3573, lng: -71.0995, name: "New Vassar" },
-  "W59": { lat: 42.356, lng: -71.099, name: "Building W59" },
-  "W84": { lat: 42.3558, lng: -71.1, name: "Building W84" },
+  "W15": { lat: 42.358327, lng: -71.094125, name: "Chapel" },
+  "W16": { lat: 42.358134, lng: -71.095058, name: "Kresge Auditorium" },
+  "W18": { lat: 42.357698, lng: -71.095813, name: "Edward and Joyce Linde Music Building" },
+  "W20": { lat: 42.359042, lng: -71.094775, name: "Stratton Student Center" },
+  "W31": { lat: 42.359638, lng: -71.095168, name: "Du Pont Athletic Gymnasium" },
+  "W32": { lat: 42.359368, lng: -71.095134, name: "Du Pont Athletic Center" },
+  "W35": { lat: 42.358716, lng: -71.09575, name: "Zesiger Sports and Fitness Center" },
+  "W41": { lat: 42.359825, lng: -71.096056, name: "Building W41" },
+  "W46": { lat: 42.358828, lng: -71.098093, name: "New Vassar" },
+  "W59": { lat: 42.358105, lng: -71.099551, name: "Heinz Building" },
+  "W84": { lat: 42.354352, lng: -71.103479, name: "Tang Hall" },
   "W89": { lat: 42.3556, lng: -71.1005, name: "Building W89" },
-  "W91": { lat: 42.3554, lng: -71.101, name: "Building W91" },
-  "W92": { lat: 42.3552, lng: -71.1012, name: "Building W92" },
-  "W97": { lat: 42.355, lng: -71.1015, name: "Building W97" },
-  "W98": { lat: 42.3548, lng: -71.1018, name: "Building W98" },
-  "WW15": { lat: 42.3546, lng: -71.102, name: "Building WW15" }
+  "W91": { lat: 42.354324, lng: -71.104426, name: "Campus Police" },
+  "W92": { lat: 42.35492, lng: -71.104617, name: "Building W92" },
+  "W97": { lat: 42.354641, lng: -71.106578, name: "Building W97" },
+  "W98": { lat: 42.353955, lng: -71.106645, name: "Building W98" },
+  "WW15": { lat: 42.355361, lng: -71.10947, name: "Building WW15" },
 };
 
 // ─── CSV PARSING ───────────────────────────────────────────────────
@@ -849,9 +856,23 @@ Bldg E28 – MIT Museum,E28,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10
 }
 
 
-function changeSheet() {
-  document.getElementById("dashboard").style.display = "none";
-  document.getElementById("setup-screen").style.display = "flex";
+function downloadResetCSV() {
+  if (!rawData || rawData.length === 0) return;
+  if (!confirm("This will download a reset CSV with all Posted statuses cleared.\n\nImport it into your Google Sheet to start a fresh posting campaign.")) return;
+
+  const escape = v => v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
+  const rows = [
+    ["Building", "Bldg #", "Floor", "Spot Name", "Spot Type", "Assigned To", "Posted", "Date Posted", "Notes"],
+    ...rawData.map(r => [r.building, r.bldgNum, r.floor, r.spot, r.type, r.assignee, "NO", "", r.notes])
+  ];
+  const csv = rows.map(r => r.map(String).map(escape).join(",")).join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `mit_flyer_tracker_reset_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 async function refreshData() {
