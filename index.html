@@ -238,6 +238,12 @@
     font-weight: 500;
   }
   .refresh-btn:hover { background: var(--subtle); }
+  .reset-btn {
+    font-size: 11px; font-family: 'DM Mono', monospace; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid #fca5a5; background: var(--card); cursor: pointer; color: var(--red-fg);
+    font-weight: 500;
+  }
+  .reset-btn:hover { background: var(--red-bg); }
 </style>
 </head>
 <body>
@@ -295,7 +301,10 @@
   <div class="container">
     <div class="refresh-bar">
       <span id="last-updated">Loading...</span>
-      <button class="refresh-btn" onclick="refreshData()">↻ Refresh</button>
+      <div style="display:flex;gap:8px;">
+        <button class="reset-btn" onclick="downloadResetCSV()">↺ Download Reset CSV</button>
+        <button class="refresh-btn" onclick="refreshData()">↻ Refresh</button>
+      </div>
     </div>
 
     <div id="error-area"></div>
@@ -845,6 +854,25 @@ Bldg E28 – MIT Museum,E28,3,Floor 3 Board,Bulletin Board,Jordan,YES,2026-03-10
   renderDashboard();
 }
 
+
+function downloadResetCSV() {
+  if (!rawData || rawData.length === 0) return;
+  if (!confirm("This will download a reset CSV with all Posted statuses cleared.\n\nImport it into your Google Sheet to start a fresh posting campaign.")) return;
+
+  const escape = v => v.includes(",") || v.includes('"') || v.includes("\n") ? `"${v.replace(/"/g, '""')}"` : v;
+  const rows = [
+    ["Building", "Bldg #", "Floor", "Spot Name", "Spot Type", "Assigned To", "Posted", "Date Posted", "Notes"],
+    ...rawData.map(r => [r.building, r.bldgNum, r.floor, r.spot, r.type, r.assignee, "NO", "", r.notes])
+  ];
+  const csv = rows.map(r => r.map(String).map(escape).join(",")).join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `mit_flyer_tracker_reset_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 async function refreshData() {
   if (!sheetUrl) return;
